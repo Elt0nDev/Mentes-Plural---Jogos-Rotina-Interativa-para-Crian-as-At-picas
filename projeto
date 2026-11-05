@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mentes Plural - Jogos & Rotina Interativa</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Compiler for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Google Fonts: Lexend (High Legibility & Dyslexia Friendly) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Lexend', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    
+    /* High Contrast Focus Rings for Accessibility */
+    *:focus-visible {
+      outline: 4px solid #2563EB !important;
+      outline-offset: 2px !important;
+    }
+
+    /* Calming background animation */
+    .bg-sensory {
+      background: linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 50%, #fef3c7 100%);
+    }
+
+    /* Large touch targets minimum 44px up to 64px */
+    .touch-target {
+      min-width: 52px;
+      min-height: 52px;
+    }
+  </style>
+</head>
+<body class="bg-sensory min-h-screen text-slate-800 antialiased selection:bg-teal-200">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- SOUND SYNTHESIS UTILITY (Sensory-friendly Web Audio API) ---
+    const playCalmTone = (freq = 440, type = 'sine', duration = 0.3) => {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      } catch (e) {
+        // Fallback silently if audio blocked
+      }
+    };
+
+    // --- MAIN APP COMPONENT ---
+    function App() {
+      const [currentTab, setCurrentTab] = useState('home');
+      const [stars, setStars] = useState(() => {
+        return parseInt(localStorage.getItem('mp_stars') || '5', 10);
+      });
+      const [highContrast, setHighContrast] = useState(false);
+      const [logs, setLogs] = useState(() => {
+        return JSON.parse(localStorage.getItem('mp_logs') || '[]');
+      });
+
+      const addStar = (amount = 1, activityName = 'Atividade') => {
+        const newTotal = stars + amount;
+        setStars(newTotal);
+        localStorage.setItem('mp_stars', newTotal.toString());
+        
+        // Add log
+        const newLog = {
+          id: Date.now(),
+          date: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          activity: activityName,
+          starsEarned: amount
+        };
+        const updatedLogs = [newLog, ...logs].slice(0, 20);
+        setLogs(updatedLogs);
+        localStorage.setItem('mp_logs', JSON.stringify(updatedLogs));
+
+        // Confetti effect
+        if (window.confetti) {
+          window.confetti({
+            particleCount: 40,
+            spread: 60,
+            origin: { y: 0.7 }
+          });
+        }
+        playCalmTone(523.25, 'sine', 0.4); // C5 note
+      };
+
+      return (
+        <div class={`min-h-screen flex flex-col ${highContrast ? 'bg-black text-yellow-300' : ''}`}>
+          
+          <!-- TOP ACCESSIBLE NAVBAR -->
+          <header class={`${highContrast ? 'bg-zinc-900 border-b-2 border-yellow-400' : 'bg-white/80 backdrop-blur-md border-b border-teal-100'} sticky top-0 z-50 px-4 py-3 shadow-sm`}>
+            <div class="max-w-5xl mx-auto flex items-center justify-between">
+              
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-teal-500 text-white flex items-center justify-center font-bold text-xl shadow-md">
+                  🧩
+                </div>
+                <div>
+                  <h1 class="font-bold text-lg leading-tight">Mentes Plural</h1>
+                  <p class="text-xs text-slate-500 font-medium">Jogos & Rotina Interativa</p>
+                </div>
+              </div>
+
+              <!-- REWARDS & ACCESSIBILITY CONTROLS -->
+              <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 bg-amber-100 text-amber-900 px-3 py-1.5 rounded-full font-bold text-sm shadow-inner">
+                  <span class="text-base">⭐</span>
+                  <span>{stars} Estrelas</span>
+                </div>
+
+                <button 
+                  onClick={() => setHighContrast(!highContrast)}
+                  aria-label="Alternar Alto Contraste"
+                  class="touch-target px-3 py-1.5 rounded-xl border-2 border-slate-300 hover:border-slate-400 font-semibold text-xs flex items-center gap-1 bg-white"
+                >
+                  👁️ Contraste
+                </button>
+              </div>
+
+            </div>
+          </header>
+
+          <!-- MAIN CONTENT AREA -->
+          <main class="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6">
+            {currentTab === 'home' && <HomeView onNavigate={setCurrentTab} />}
+            {currentTab === 'routine' && <RoutineView onComplete={(name) => addStar(2, name)} />}
+            {currentTab === 'memory' && <MemoryGameView onWin={() => addStar(3, 'Jogo da Memória')} />}
+            {currentTab === 'emotions' && <EmotionsView onExpress={(emo) => addStar(1, `Expressou: ${emo}`)} />}
+            {currentTab === 'therapist' && <TherapistDashboard logs={logs} stars={stars} onReset={() => {
+              setStars(0);
+              setLogs([]);
+              localStorage.clear();
+            }} />}
+          </main>
+
+          <!-- BOTTOM NAVIGATION BAR (LARGE TOUCH TARGETS) -->
+          <nav class={`${highContrast ? 'bg-zinc-900 border-t-2 border-yellow-400' : 'bg-white border-t border-slate-200'} sticky bottom-0 z-40 px-2 py-2 shadow-lg`}>
+            <div class="max-w-md mx-auto grid grid-cols-5 gap-1">
+              
+              <NavButton 
+                active={currentTab === 'home'} 
+                onClick={() => setCurrentTab('home')} 
+                icon="🏠" 
+                label="Início" 
+              />
+              <NavButton 
+                active={currentTab === 'routine'} 
+                onClick={() => setCurrentTab('routine')} 
+                icon="📅" 
+                label="Rotina" 
+              />
+              <NavButton 
+                active={currentTab === 'emotions'} 
+                onClick={() => setCurrentTab('emotions')} 
+                icon="😊" 
+                label="Emoções" 
+              />
+              <NavButton 
+                active={currentTab === 'memory'} 
+                onClick={() => setCurrentTab('memory')} 
+                icon="🧩" 
+                label="Jogos" 
+              />
+              <NavButton 
+                active={currentTab === 'therapist'} 
+                onClick={() => setCurrentTab('therapist')} 
+                icon="📊" 
+                label="Painel" 
+              />
+
+            </div>
+          </nav>
+
+        </div>
+      );
+    }
+
+    // --- NAVIGATION BUTTON COMPONENT ---
+    function NavButton({ active, onClick, icon, label }) {
+      return (
+        <button
+          onClick={onClick}
+          class={`touch-target flex flex-col items-center justify-center p-2 rounded-2xl transition-all ${
+            active 
+              ? 'bg-teal-500 text-white font-bold shadow-md scale-105' 
+              : 'text-slate-600 hover:bg-slate-100 font-medium'
+          }`}
+        >
+          <span class="text-xl mb-0.5">{icon}</span>
+          <span class="text-[11px] leading-none">{label}</span>
+        </button>
+      );
+    }
+
+    // --- HOME DASHBOARD VIEW ---
+    function HomeView({ onNavigate }) {
+      return (
+        <div class="space-y-6 animate-fadeIn">
+          <div class="bg-gradient-to-r from-teal-500 to-emerald-500 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="space-y-2 text-center md:text-left">
+              <span class="bg-white/20 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">Espaço Inclusivo</span>
+              <h2 class="text-2xl md:text-3xl font-extrabold">Olá! O que vamos fazer agora?</h2>
+              <p class="text-teal-50 text-sm max-w-md">Escolha uma atividade interativa com apoio visual e estímulo tátil adaptado.</p>
+            </div>
+            <div class="text-6xl animate-bounce">🎨</div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <MenuCard 
+              title="Rotina Visual" 
+              desc="Pequenos passos para o dia a dia" 
+              icon="📅" 
+              color="bg-sky-500" 
+              onClick={() => onNavigate('routine')} 
+            />
+            <MenuCard 
+              title="Regulador Emocional" 
+              desc="Como estou me sentindo hoje?" 
+              icon="💛" 
+              color="bg-amber-500" 
+              onClick={() => onNavigate('emotions')} 
+            />
+            <MenuCard 
+              title="Jogo da Memória" 
+              desc="Estimulação cognitiva suave" 
+              icon="🧩" 
+              color="bg-indigo-500" 
+              onClick={() => onNavigate('memory')} 
+            />
+          </div>
+        </div>
+      );
+    }
+
+    function MenuCard({ title, desc, icon, color, onClick }) {
+      return (
+        <div 
+          onClick={onClick}
+          class="bg-white rounded-3xl p-5 border-2 border-slate-100 shadow-sm hover:shadow-xl transition-all cursor-pointer flex items-center gap-4 group hover:-translate-y-1"
+        >
+          <div class={`${color} w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-md text-white group-hover:scale-110 transition-transform`}>
+            {icon}
+          </div>
+          <div class="flex-1">
+            <h3 class="font-bold text-lg text-slate-800">{title}</h3>
+            <p class="text-xs text-slate-500">{desc}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // --- VISUAL ROUTINE COMPONENT (PECS STYLE) ---
+    function RoutineView({ onComplete }) {
+      const [tasks, setTasks] = useState([
+        { id: 1, title: 'Escovar os dentes', icon: '🪥', done: false, time: 'Manhã' },
+        { id: 2, title: 'Lavar as mãos', icon: '🧼', done: false, time: 'Manhã' },
+        { id: 3, title: 'Tomar café', icon: '🍎', done: false, time: 'Manhã' },
+        { id: 4, title: 'Guardar brinquedos', icon: '🧸', done: false, time: 'Tarde' },
+        { id: 5, title: 'Hora da leitura', icon: '📚', done: false, time: 'Tarde' },
+        { id: 6, title: 'Hora de dormir', icon: '🌙', done: false, time: 'Noite' }
+      ]);
+
+      const toggleTask = (id) => {
+        const updated = tasks.map(t => {
+          if (t.id === id) {
+            const nextDone = !t.done;
+            if (nextDone) onComplete(t.title);
+            return { ...t, done: nextDone };
+          }
+          return t;
+        });
+        setTasks(updated);
+      };
+
+      return (
+        <div class="space-y-6">
+          <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+            <h2 class="text-xl font-bold flex items-center gap-2">
+              <span>📅</span> Quadro Visual de Rotina
+            </h2>
+            <p class="text-xs text-slate-500">Clique nas tarefas concluídas para ganhar estrelas!</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {tasks.map(t => (
+              <div 
+                key={t.id}
+                onClick={() => toggleTask(t.id)}
+                class={`touch-target p-4 rounded-3xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                  t.done 
+                    ? 'bg-emerald-50 border-emerald-400 opacity-80' 
+                    : 'bg-white border-slate-200 hover:border-teal-400 shadow-sm'
+                }`}
+              >
+                <div class="flex items-center gap-3">
+                  <span class="text-4xl p-2 bg-slate-100 rounded-2xl">{t.icon}</span>
+                  <div>
+                    <h3 class={`font-bold ${t.done ? 'line-through text-emerald-800' : 'text-slate-800'}`}>
+                      {t.title}
+                    </h3>
+                    <span class="text-[10px] font-semibold uppercase px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md">
+                      {t.time}
+                    </span>
+                  </div>
+                </div>
+                <div class={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm ${
+                  t.done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'
+                }`}>
+                  {t.done ? '✓' : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // --- EMOTIONS & SENSORY REGULATION VIEW ---
+    function EmotionsView({ onExpress }) {
+      const [selectedEmotion, setSelectedEmotion] = useState(null);
+
+      const emotions = [
+        { name: 'Feliz', icon: '😊', color: 'bg-emerald-100 border-emerald-400 text-emerald-800', tip: 'Que ótimo! Compartilhe seu sorriso com alguém.' },
+        { name: 'Calmo', icon: '😌', color: 'bg-sky-100 border-sky-400 text-sky-800', tip: 'Continue respirando fundo. O dia está tranquilo.' },
+        { name: 'Cansado', icon: '🥱', color: 'bg-indigo-100 border-indigo-400 text-indigo-800', tip: 'Que tal descansar um pouco num cantinho aconchegante?' },
+        { name: 'Assustado', icon: '😨', color: 'bg-purple-100 border-purple-400 text-purple-800', tip: 'Você está seguro. Peça um abraço ao seu cuidador.' },
+        { name: 'Bravo', icon: '😡', color: 'bg-rose-100 border-rose-400 text-rose-800', tip: 'Respire em 3 tempos: Puxe o ar... segure... solte devagar.' }
+      ];
+
+      const handleSelect = (emo) => {
+        setSelectedEmotion(emo);
+        onExpress(emo.name);
+      };
+
+      return (
+        <div class="space-y-6">
+          <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm text-center">
+            <h2 class="text-2xl font-bold text-slate-800">Como você está se sentindo agora?</h2>
+            <p class="text-xs text-slate-500">Toque no card para expressar suas emoções</p>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {emotions.map(emo => (
+              <button
+                key={emo.name}
+                onClick={() => handleSelect(emo)}
+                class={`touch-target p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all hover:scale-105 ${emo.color}`}
+              >
+                <span class="text-5xl">{emo.icon}</span>
+                <span class="font-bold text-sm">{emo.name}</span>
+              </button>
+            ))}
+          </div>
+
+          {selectedEmotion && (
+            <div class="bg-white p-6 rounded-3xl border-2 border-teal-300 shadow-md text-center animate-fadeIn space-y-3">
+              <span class="text-6xl">{selectedEmotion.icon}</span>
+              <h3 class="text-xl font-bold">Você sente: {selectedEmotion.name}</h3>
+              <p class="text-slate-600 font-medium max-w-md mx-auto">{selectedEmotion.tip}</p>
+              
+              <!-- BREATHING REGULATOR WIDGET -->
+              <div class="pt-4 border-t border-slate-100">
+                <p class="text-xs font-bold text-slate-400 uppercase mb-2">Exercício de Respiração Guiada</p>
+                <div class="w-16 h-16 bg-teal-200 text-teal-800 rounded-full mx-auto flex items-center justify-center font-bold text-xs animate-ping">
+                  Respire
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- COGNITIVE MEMORY GAME VIEW ---
+    function MemoryGameView({ onWin }) {
+      const items = ['🐶', '🐱', '🐰', '🦊'];
+      const [cards, setCards] = useState([]);
+      const [flipped, setFlipped] = useState([]);
+      const [matched, setMatched] = useState([]);
+
+      const initGame = () => {
+        const deck = [...items, ...items]
+          .sort(() => Math.random() - 0.5)
+          .map((icon, idx) => ({ id: idx, icon }));
+        setCards(deck);
+        setFlipped([]);
+        setMatched([]);
+      };
+
+      useEffect(() => {
+        initGame();
+      }, []);
+
+      const handleCardClick = (idx) => {
+        if (flipped.length === 2 || flipped.includes(idx) || matched.includes(idx)) return;
+        
+        playCalmTone(300 + idx * 50, 'sine', 0.1);
+        const newFlipped = [...flipped, idx];
+        setFlipped(newFlipped);
+
+        if (newFlipped.length === 2) {
+          const [first, second] = newFlipped;
+          if (cards[first].icon === cards[second].icon) {
+            setMatched(prev => [...prev, first, second]);
+            setFlipped([]);
+            if (matched.length + 2 === cards.length) {
+              setTimeout(() => {
+                onWin();
+              }, 400);
+            }
+          } else {
+            setTimeout(() => setFlipped([]), 1000);
+          }
+        }
+      };
+
+      return (
+        <div class="space-y-6">
+          <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-bold">Jogo da Memória Divertido</h2>
+              <p class="text-xs text-slate-500">Encontre os pares dos animais</p>
+            </div>
+            <button 
+              onClick={initGame}
+              class="px-4 py-2 bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl hover:bg-indigo-200"
+            >
+              🔄 Recomeçar
+            </button>
+          </div>
+
+          <div class="grid grid-cols-4 gap-3 max-w-md mx-auto">
+            {cards.map((card, idx) => {
+              const isFlipped = flipped.includes(idx) || matched.includes(idx);
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleCardClick(idx)}
+                  class={`h-24 rounded-2xl text-4xl flex items-center justify-center font-bold border-2 transition-all ${
+                    isFlipped 
+                      ? 'bg-white border-indigo-400 rotate-0' 
+                      : 'bg-indigo-500 border-indigo-600 text-transparent shadow-md'
+                  }`}
+                >
+                  {isFlipped ? card.icon : '❓'}
+                </button>
+              );
+            })}
+          </div>
+
+          {matched.length === cards.length && cards.length > 0 && (
+            <div class="bg-emerald-100 border-2 border-emerald-400 p-4 rounded-2xl text-center space-y-2">
+              <h3 class="font-bold text-emerald-900 text-lg">Parabéns! Você venceu! 🎉</h3>
+              <p class="text-xs text-emerald-700">Você ganhou +3 Estrelas pela excelente memória!</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- CLINICAL DASHBOARD FOR THERAPISTS/PARENTS ---
+    function TherapistDashboard({ logs, stars, onReset }) {
+      return (
+        <div class="space-y-6">
+          <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-2">
+            <span class="bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1 rounded-full uppercase">Área do Terapeuta / Responsável</span>
+            <h2 class="text-2xl font-bold text-slate-800">Relatório de Desempenho Clínico</h2>
+            <p class="text-xs text-slate-500">Acompanhe a adesão às rotinas visuais e regulação comportamental em tempo real.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- STATS -->
+            <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-400 font-bold uppercase">Total de Recompensas</p>
+                <h3 class="text-3xl font-extrabold text-amber-500">{stars} Estrelas</h3>
+              </div>
+              <span class="text-4xl">🏆</span>
+            </div>
+
+            <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-400 font-bold uppercase">Atividades Registradas</p>
+                <h3 class="text-3xl font-extrabold text-teal-600">{logs.length} Registros</h3>
+              </div>
+              <span class="text-4xl">📈</span>
+            </div>
+          </div>
+
+          <!-- LOG HISTORIC TABLE -->
+          <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 class="font-bold text-sm text-slate-700">Histórico de Engajamento Recente</h3>
+              <button 
+                onClick={onReset} 
+                class="text-xs text-rose-600 hover:underline font-semibold"
+              >
+                Limpar Dados
+              </button>
+            </div>
+            
+            <div class="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+              {logs.length === 0 ? (
+                <p class="p-4 text-xs text-slate-400 text-center">Nenhuma atividade registrada ainda.</p>
+              ) : (
+                logs.map(log => (
+                  <div key={log.id} class="p-3.5 flex items-center justify-between text-xs hover:bg-slate-50">
+                    <div class="flex items-center gap-2">
+                      <span class="text-slate-400 font-mono">{log.date}</span>
+                      <span class="font-bold text-slate-800">{log.activity}</span>
+                    </div>
+                    <span class="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                      +{log.starsEarned} ⭐
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div class="bg-slate-100 p-4 rounded-2xl text-xs text-slate-600 space-y-1">
+            <p class="font-bold">💡 Nota de Acessibilidade:</p>
+            <p>Este aplicativo segue as diretrizes da WCAG 2.1 (Nível AA), com contrastes ajustáveis, 
